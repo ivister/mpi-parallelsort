@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <vector>
 #include <cstring>
+#include <iomanip>
 
 #define NOTE_LEN 3
 #define PARTS 2
@@ -174,7 +175,7 @@ int generateNotes(char** &notes, int count)
     return 0;
 }
 
-int resToFile(char** notes, int count, std::string filename)  //TODO: Change out!
+int resToFile(char** notes, int count, std::string filename, double elTime)  //TODO: Change out!
 {
     std::ofstream filestream(filename);
     if (!filestream.is_open())
@@ -185,6 +186,8 @@ int resToFile(char** notes, int count, std::string filename)  //TODO: Change out
     filestream << count << std::endl;
     for (int i = 0; i < count; i++)
         filestream <<notes[i]<<" ";
+    filestream << std::endl;
+    filestream << "Elapsed time " << std::fixed << std::setprescision(2) << elTime;
     filestream.close();
     return 0;
 }
@@ -261,6 +264,7 @@ int main (int argc, char** argv)
             swapIteration,
             currentSize;
     string filename;
+    double startTime, stopTime;
     bool flag = false; // false - Exp(no file)
     //int wasSwaped;
     //int wasSwappedCheck;
@@ -329,9 +333,12 @@ int main (int argc, char** argv)
     MPI_Barrier(MPI_COMM_WORLD);
 
     packPos = 0;
-    for(int i = 0; i < subSize; i++)
-        MPI_Unpack(subArray, subSize * NOTE_LEN, &packPos, subNotes[i], NOTE_LEN, MPI_CHAR, MPI_COMM_WORLD);
+    // for(int i = 0; i < subSize; i++)
+    //     MPI_Unpack(subArray, subSize * NOTE_LEN, &packPos, subNotes[i], NOTE_LEN, MPI_CHAR, MPI_COMM_WORLD);
+    if (rank == FIRST)
+        startTime = MPI_Wtime();
 
+    MPI_Barrier(MPI_COMM_WORLD);
     quickSort(subNotes, 0, subSize-1); //, wasSwaped);
 
     swapIteration = 1;  //send to next
@@ -499,6 +506,7 @@ int main (int argc, char** argv)
         ++swapIteration;
     } while (swapIteration < maxIterations);
 
+    stopTime = MPI_Wtime();
 //    for (int i = 0; i < currentSize; i++)
 //        std::cout<<"NEW:"<<rank<<" "<<"SubNote "<<i<<":"<<subNotes[i]<<std::endl;
 
@@ -507,15 +515,21 @@ int main (int argc, char** argv)
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Gather(subArray, subSize * NOTE_LEN, MPI_CHAR, array, subSize * NOTE_LEN, MPI_CHAR, FIRST, MPI_COMM_WORLD);
 
-    //std::cout<<"HUYAK:"<<rank<<" "<<std::endl;
-
     int pos = 0;
     for (int i = 0; i < numNotes; i++)
         MPI_Unpack(array, numNotes * NOTE_LEN, &pos, notes[i], NOTE_LEN, MPI_CHAR, MPI_COMM_WORLD);
 
 
-    if (rank == FIRST)
-        resToFile(notes, numNotes, RESULTFILE);
+    if (rank == FIRST) {
+        if(flag)
+            resToFile(notes, numNotes, RESULTFILE);
+        else {
+            //for (int i = 0; i < numNotes; i++)
+            //    cout << notes[i] << endl;
+            cout << "Data: " << numNotes << " notes. Procs: " << numProcs << ".";
+            cout << "Elapsed time: " << std::fixed << std::setprescision(2) << stopTime - startTime;
+        }
+    }
     MPI_Finalize();
     /*
         startT = MPI_Wtime(); //Start The Time.
