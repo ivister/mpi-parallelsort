@@ -26,6 +26,6 @@ mpic++ -o ParallelSort parallelsort.cpp -std=c++11 -Wall
 
 ## Authors
 
-* **Andrey Alexeev** - *Initial work* - [PurpleBooth](https://github.com/ivister)
+* **Andrey Alexeev** - *Initial work* - [Development](https://github.com/ivister)
 
 See also the list of [contributors](#) who participated in this project.
