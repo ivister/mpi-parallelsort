@@ -141,7 +141,7 @@ int readFile(std::string filename, int &num, char** &notes, int numprocs)
         i ++;
     }
     if (i != count){
-        std::cerr << "Error in " << "\"" + filename + "\": " << "input file:" << std::endl;
+        std::cerr << "Error in " << "\"" + filename + "\": " << "input file: [1:]" << std::endl;
         std::cerr << "\tInvalid count of notes." << std::endl;
         std::cerr << "\tFound " << i << " notes insteed of " << count << "." << std::endl;
         return -1;
@@ -187,7 +187,7 @@ int resToFile(char** notes, int count, std::string filename, double elTime)  //T
     for (int i = 0; i < count; i++)
         filestream <<notes[i]<<" ";
     filestream << std::endl;
-    filestream << "Elapsed time " << std::fixed << std::setprescision(2) << elTime;
+    filestream << "Elapsed time " << std::fixed << std::setprescision(2) << elTime << " .";
     filestream.close();
     return 0;
 }
