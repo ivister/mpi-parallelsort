@@ -19,8 +19,15 @@
 #define PARTS 2
 #define RESULTFILE "result.txt"
 
+int compareStr(const void* first, const void * second)
+{
+    const char** st1 = (const char **)first;
+    const char** st2 = (const char **)second;
+    return strcmp(*st1, *st2);
+}
+
 void quickSort(char** notes, int start, int end)  //, int& wasSwap)  // if setting true > was swapped
-{ 
+{
     if (start >= end)
         return;
     char* tmp;
@@ -144,6 +151,8 @@ int readFile(std::string filename, int &num, char** &notes, int numprocs)
         std::cerr << "\tFound " << i << " notes insteed of " << count << "." << std::endl;
         return -1;
     }
+//    for (int i = 0; i < num; i++)
+//        std::cout<<" "<<"SubNote "<<i<<":"<<notes[i]<<std::endl;
     return 0;
 }
 
@@ -152,11 +161,11 @@ int generateNotes(char** &notes, int count)
     srand(time(NULL));
     char* tmp = new char[NOTE_LEN];
     try {
-        notes = new char*[count]; 
+        notes = new char*[count];
         for(int i = 0; i < count; i++)
             notes[i] = new char[NOTE_LEN];
     }
-    catch (...)
+    catch (std::bad_alloc&)
     {
         std::cerr << "Error in allocate memory" << std::endl;
         return -1;
@@ -165,12 +174,13 @@ int generateNotes(char** &notes, int count)
         for(int j = 0; j < NOTE_LEN; j++)
             tmp[j] = 65 + rand() % 58; //  rand() % 256;  //65 + rand() % 58;
         tmp[NOTE_LEN - 1] = '\0';
-        strcpy(notes[i], tmp); 
+        strcpy(notes[i], tmp);
+        //std::cout<<"NOTE "<<i<<":"<<notes[i]<<std::endl;
     }
     return 0;
 }
 
-int resToFile(char** notes, int count, std::string filename, double elTime)  //TODO: Change out!
+int resToFile(char** notes, int count, std::string filename)  //, double elTime)  //TODO: Change out!
 {
     std::ofstream filestream(filename);
     if (!filestream.is_open())
@@ -182,13 +192,15 @@ int resToFile(char** notes, int count, std::string filename, double elTime)  //T
     for (int i = 0; i < count; i++)
         filestream <<notes[i]<<" ";
     filestream << std::endl;
-    filestream << "Elapsed time " << std::fixed << std::setprecision(2) << elTime << " ." << std::endl;
+//    filestream << "Elapsed time " << std::fixed << std::setprecision(2) << elTime << " ." << std::endl;
     filestream.close();
     return 0;
 }
 
 char* sendPartToArr(char** subNotes, int count, bool side)  // true -> right to array
 {
+//        std::cout << "LEN IS" << count << ":" << NOTE_LEN * count << std::endl;
+
     char* arr = new char[NOTE_LEN * count];
     int pos = 0;
     if (side) {
@@ -251,7 +263,7 @@ int main (int argc, char** argv)
 {
     int rank, numProcs,
             numNotes, subSize,
-            toRank, packPos,
+            packPos, toRank,
             fromRank,
             maxIterations,
             swapIteration,
@@ -259,9 +271,7 @@ int main (int argc, char** argv)
     string filename;
     double startTime, stopTime;
     bool flag = false; // false - Exp(no file)
-    //int wasSwaped;
-    //int wasSwappedCheck;
-    //bool needSort;
+    
     int ErrorFromCheck = 0;
 
     char** notes;
@@ -283,7 +293,6 @@ int main (int argc, char** argv)
     if(rank == 0) {
         ErrorFromCheck = parseArgs(argc, argv, numNotes, numProcs, filename, flag);
         if (flag && ErrorFromCheck == 0) {
-            //std::cout << "NumNotes: " << numNotes << std::endl;
             ErrorFromCheck = readFile(filename, numNotes, notes, numProcs);
             //std::cout<<"Note "<<i<<":"<<notes[i]<<std::endl;
         } else if (!flag && ErrorFromCheck == 0) {
@@ -296,19 +305,13 @@ int main (int argc, char** argv)
         MPI_Finalize();
         return 0;
     }
-//    std::string inp = "input.txt";
-//    if(flag)
-//        resToFile(notes, numNotes, inp, 0);
 
-    if(rank == 0) {
+    if (rank == FIRST)
+    {
+        std::string inp = "input.txt";
+        resToFile(notes, numNotes, inp);
         array = new char[numNotes * NOTE_LEN];
-        currentSize = subSize;
-
-//        for (int i = 0; i < numNotes; i++)
-//            std::cout<<" "<<"SubNote "<<i<<":"<<notes[i]<<std::endl;
-
         subToArr(notes, array, numNotes);
-
         subSize = numNotes / numProcs;
     }
 
@@ -330,17 +333,27 @@ int main (int argc, char** argv)
     packPos = 0;
     for(int i = 0; i < subSize; i++)
         MPI_Unpack(subArray, subSize * NOTE_LEN, &packPos, subNotes[i], NOTE_LEN, MPI_CHAR, MPI_COMM_WORLD);
+
+    MPI_Barrier(MPI_COMM_WORLD);
     if (rank == FIRST)
         startTime = MPI_Wtime();
 
-    MPI_Barrier(MPI_COMM_WORLD);
-    quickSort(subNotes, 0, subSize-1); //, wasSwaped);
+    //MPI_Barrier(MPI_COMM_WORLD);
+
+    //quickSort(subNotes, 0, subSize-1); //, wasSwaped);
+    //int size = sizeof(subNotes)/sizeof(subNotes[0]);
+    //std::cout<<"SIZE:"<<size<<std::endl;
+    //return 1;
+    //sort(subNotes, subNotes + currentSize, compareStr);
 
     swapIteration = 1;  //send to next
     maxIterations = (numProcs % 2 == 0) ? (numProcs + 3) : (numProcs + 2);
     do {
         bool side;
 
+        std::qsort(subNotes, currentSize, sizeof(char*), compareStr);
+
+        //quickSort(subNotes, 0, currentSize -1)
         /*if (rank == LAST)
         {
             //std::cout<<"ITER:"<<swapIteration<<std::endl;
@@ -430,37 +443,18 @@ int main (int argc, char** argv)
             }
             else if (rank == LAST)
             {
-                if(numProcs > 1)
-                    fromRank = LAST - 1;
-                else
-                    fromRank = LAST;
-                //fromRank = LAST - 1;
+                fromRank = LAST - 1;
                 sendArray = new char[subSize / 2 * NOTE_LEN];
-                /*for (int i = 0; i < currentSize; i++)
-                    std::cout<<"BEFORE SHIFT:"<<rank<<" "<<"NOTE "<<i<<":"<<subNotes[i]<<std::endl;*/
                 subShift(subNotes, subSize, side);
                 currentSize = subSize * 1.5;
-                /*for (int i = 0; i < currentSize; i++)
-                    std::cout<<"AFTER SHIFT:"<<rank<<" "<<"NOTE "<<i<<":"<<subNotes[i]<<std::endl;*/
-                MPI_Irecv(sendArray, (subSize / 2) * NOTE_LEN, MPI_CHAR, fromRank, rank + fromRank,
-                          MPI_COMM_WORLD, &request);
+                MPI_Irecv(sendArray, (subSize / 2) * NOTE_LEN, MPI_CHAR, fromRank, rank + fromRank, MPI_COMM_WORLD, &request);
                 MPI_Wait(&request, &status);
-
-                /*for (int i = 0; i < currentSize; i++)
-                    std::cout<<"OLD:"<<rank<<" "<<"SubNote "<<i<<":"<<subNotes[i]<<std::endl;*/
                 mergeArrays(subNotes, sendArray, subSize, side);
-                /*for (int i = 0; i < currentSize; i++)
-                    std::cout<<"AFTER MERGE:"<<rank<<" "<<"NOTE "<<i<<":"<<subNotes[i]<<std::endl;
-                for (int i = 0; i < currentSize; i++)
-                    std::cout << "NEW:" << i << " " << "SubNote " << i << ":" << subNotes[i] << std::endl;*/
-                //std::cout<<"rank:"<<rank<<" "<<"I AM  "<<rank<<std::endl;
             }
             else if (rank != LAST && rank != FIRST)
             {
                 toRank = rank + 1;
                 fromRank = rank - 1;
-//                for (int i = 0; i < subSize; i++)
-//                    std::cout << "NEW:" << i << " " << "SubNote " << i << ":" << subNotes[i] << std::endl;
                 sendArray = sendPartToArr(subNotes, subSize / PARTS, !side);
                 subShift(subNotes, subSize/PARTS, side);
                 MPI_Isend(sendArray, subSize / 2 * NOTE_LEN, MPI_CHAR, toRank, rank + toRank,
@@ -473,8 +467,8 @@ int main (int argc, char** argv)
             }
 
         }
-
-        quickSort(subNotes, 0, currentSize -1);  //, wasSwaped);
+        
+        //quickSort(subNotes, 0, currentSize -1);  //, wasSwaped);
 
 /*        MPI_Reduce(&wasSwaped, &wasSwappedCheck, 1, MPI_INT, MPI_SUM, FIRST, MPI_COMM_WORLD);
         MPI_Barrier(MPI_COMM_WORLD);
@@ -492,9 +486,7 @@ int main (int argc, char** argv)
             std::cout<<"rank:"<<rank<<" "<<"NOTE "<<i<<":"<<subNotes[i]<<std::endl;
 
         MPI_Finalize();
-        return 0;
-        
-        */
+        return 0;*/
         /*if (rank == LAST)
         {
             std::cout<<"ITER:"<<swapIteration<<std::endl;
@@ -502,8 +494,10 @@ int main (int argc, char** argv)
             //std::cout<<"ITER:"<<swapIteration<<std::endl;
         ++swapIteration;
     } while (swapIteration < maxIterations);
-
-    stopTime = MPI_Wtime();
+    
+    
+    if(rank == FIRST)
+        stopTime = MPI_Wtime();
 //    for (int i = 0; i < currentSize; i++)
 //        std::cout<<"NEW:"<<rank<<" "<<"SubNote "<<i<<":"<<subNotes[i]<<std::endl;
 
@@ -512,33 +506,35 @@ int main (int argc, char** argv)
     MPI_Barrier(MPI_COMM_WORLD);
     MPI_Gather(subArray, subSize * NOTE_LEN, MPI_CHAR, array, subSize * NOTE_LEN, MPI_CHAR, FIRST, MPI_COMM_WORLD);
 
-    int pos = 0;
-    for (int i = 0; i < numNotes; i++)
-        MPI_Unpack(array, numNotes * NOTE_LEN, &pos, notes[i], NOTE_LEN, MPI_CHAR, MPI_COMM_WORLD);
-
+    if(rank == FIRST)
+    {
+        int pos = 0;
+        for (int i = 0; i < numNotes; i++)
+            MPI_Unpack(array, numNotes * NOTE_LEN, &pos, notes[i], NOTE_LEN, MPI_CHAR, MPI_COMM_WORLD);
+    }
 
     if (rank == FIRST) {
         if(flag)
-            resToFile(notes, numNotes, RESULTFILE, stopTime - startTime);
+            resToFile(notes, numNotes, RESULTFILE);
         else {
-            cout << "Data: " << numNotes << " notes. Procs: " << numProcs << ".";
-            cout << "Elapsed time: " << std::fixed << std::setprecision(2) << stopTime - startTime;
+            //for (int i = 0; i < numNotes; i++)
+            //    cout << notes[i] << endl;
+            cout << "Data: " << numNotes << " notes. Procs: " << numProcs << "." << endl;
+            cout << "Elapsed time: " << std::fixed << std::setprecision(2) << stopTime - startTime << endl;
+            resToFile(notes, numNotes, RESULTFILE);
         }
     }
-    if (rank == FIRST)
-    {
-        for(int i = 0; i < numNotes; i++)
-            delete[] notes[i];
-        delete[] notes;
-        delete[] array;
-    }
-    if (FIRST != LAST)
-    {
-        delete[] subNotes;
-        delete[] sendArray;
-        delete[] subArray;
-    }
-
     MPI_Finalize();
+    /*
+        startT = MPI_Wtime(); //Start The Time.
+        stopT = MPI_Wtime();
+        double parallelTime = stopT- startT;
+        printf("\n\n\nTime: %f", parallelTime);
+
+        double poslTime = stopT - startT;
+        printf("\n Time: %f", stopT - startT);
+        printf("\n SpeedUp: %f \n\n\n", poslTime/parallelTime);
+
+     */
     return 0;
 }
