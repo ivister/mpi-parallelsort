@@ -22,7 +22,6 @@ mpic++ -o ParallelSort parallelsort.cpp -std=c++11 -Wall
 ## Built With
 
 * [MPICH](#) - MPI Library
-* [CLion](#) - IDE
 
 ## Authors
 
