@@ -18,6 +18,8 @@
 #define NOTE_LEN 3
 #define PARTS 2
 #define RESULTFILE "result.txt"
+#define MAXNOTES 700000000 
+
 
 int compareStr(const void* first, const void * second)
 {
@@ -36,7 +38,7 @@ void swap (  a, int* b )
 }
 */
 
-
+/*
 int partition (char** notes, int l, int h)
 {
     char* x = notes[h];
@@ -57,7 +59,8 @@ int partition (char** notes, int l, int h)
     notes[h] = tmp;
     return (i + 1);
 }
-
+*/
+/*
 void quickSort(char** notes, int start, int end)  //, int& wasSwap)  // if setting true > was swapped
 {
     //if (start >= end)
@@ -92,7 +95,7 @@ void quickSort(char** notes, int start, int end)  //, int& wasSwap)  // if setti
     }
     delete[] stack;
 }
-
+*/
 /*
         }
 
@@ -147,6 +150,9 @@ void quickSort(char** notes, int start, int end)  //, int& wasSwap)  // if setti
 int parseArgs(int argc, char** argv, long &num, const int numProcs, std::string &filename, bool &flag)
 {
     int opt;
+    size_t check;
+    std::string tmp_buf;
+
     if (argc == 3 || argc == 5);
     else{
         std::cerr << "Invalid count of processes" << std::endl;
@@ -155,14 +161,28 @@ int parseArgs(int argc, char** argv, long &num, const int numProcs, std::string 
     while ((opt = getopt(argc, argv, "n:f:")) != -1) {
         switch (opt) {
             case 'n':
-                num = atol(optarg);
-                std::cout<< "NUMBER  " << num << std::endl;
-                if (num < numProcs) {
+                tmp_buf = optarg;
+                check = tmp_buf.find_first_not_of("0987654321");
+                if (check != std::string::npos)
+                {
                     std::cerr << "Invalid count of notes." << std::endl;
+                    std::cerr << "Found non-number symbol." << std::endl;
                     return -1;
                 }
-                if (num % (numProcs * 2) != 0) {
+                num = std::stol(tmp_buf);
+                if (num < numProcs) {
                     std::cerr << "Invalid count of notes." << std::endl;
+                    std::cerr << "Count of notes < numprocs." << std::endl;
+                    return -1;
+                }
+                if (num % (numProcs * 4) != 0) {
+                    std::cerr << "Invalid count of notes." << std::endl;
+                    std::cerr << "Count of notes must / (numprocs*4)." << std::endl;
+                    return -1;
+                }
+                if (num > MAXNOTES)
+                {
+                    std::cerr << "Invalid count of notes." << std::endl << "Count of notes > 700000" << std::endl;
                     return -1;
                 }
                 break;
@@ -420,7 +440,7 @@ int main (int argc, char** argv)
         startTime = MPI_Wtime();
 
     swapIteration = 1;  //send to next
-    maxIterations = (numProcs % 2 == 0) ? (numProcs + 1) : (numProcs + 2);
+    maxIterations = (numProcs % 2 == 0) ? (numProcs + 3) : (numProcs + 2);
     do {
         bool side;
 
